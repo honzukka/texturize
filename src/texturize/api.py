@@ -25,6 +25,7 @@ def process_iterations(
     mode: str = None,
     device: str = None,
     precision: str = None,
+    procam: object = None
 ):
     """Synthesize a new texture and return a PyTorch tensor at each iteration.
     """
@@ -34,7 +35,7 @@ def process_iterations(
     octaves = octaves or getattr(cmd, "octaves", int(math.log(factor, 2) + 1.0))
 
     # Setup the application to use throughout the synthesis.
-    app = Application(log, device, precision)
+    app = Application(log, device, precision, procam)
 
     # Encoder used by all the critics at every octave.
     encoder = getattr(models, model)(pretrained=True, pool_type=torch.nn.AvgPool2d)
@@ -96,22 +97,38 @@ def process_octaves(cmd, **kwargs):
 
 
 def process_single_command(cmd, log: object, output: str = None, **config: dict):
+    procam = config["procam"]
     for result in process_octaves(cmd, log=log, **config):
         result = cmd.finalize_octave(result)
 
-        images = save_tensor_to_images(result.images)
+        images = save_tensor_to_images(result.images, to_sRGB=True)
+        renders = save_tensor_to_images(
+            procam(result.images).clamp(0.0, 1.0), to_sRGB=True
+        )
+
         filenames = []
         for i, image in enumerate(images):
             # Save the files for each octave to disk.
-            filename = output.format(
+            filename_img = output.format(
                 octave=result.octave,
                 variation=f"_{i}" if len(images) > 1 else "",
                 command=cmd.__class__.__name__.lower(),
+                type="opt"
+            )
+            filename_render = output.format(
+                octave=result.octave,
+                variation=f"_{i}" if len(images) > 1 else "",
+                command=cmd.__class__.__name__.lower(),
+                type='render'
             )
             image.resize(size=config["size"], resample=0).save(
-                filename, lossless=True, compress=6
+                filename_img, lossless=True, compress=6
             )
-            log.debug("\n=> output:", filename)
-            filenames.append(filename)
+            renders[i].resize(size=config["size"], resample=0).save(
+                filename_render, lossless=True, compress=6
+            )
+            log.debug("\n=> output:", filename_render)
+            filenames.append(filename_render)
 
+    output_bg_and_target(procam.background, cmd.source, output, to_sRGB=True)
     return result, filenames

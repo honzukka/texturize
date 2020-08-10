@@ -1,3 +1,5 @@
+setup.cfg
+
 # Byte-compiled / optimized / binary files.
 __pycache__/
 *.py[cod]

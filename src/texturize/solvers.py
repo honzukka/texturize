@@ -117,7 +117,7 @@ class SolverSGD:
 
         # Let the objective compute the loss and its gradients.
         self.image.data.clamp_(0.0, 1.0)
-        assert self.image.requires_grad == True
+        assert self.image.requires_grad
         with torch.enable_grad():
             loss, scores = self.objective(self.image)
 
@@ -232,3 +232,15 @@ class SequentialCriticObjective:
             image.grad.data.mul_(self.alpha)
 
         return sum(scores) / len(scores), scores
+
+
+class ProcamObjectiveWrapper:
+    def __init__(
+        self, procam, objective_class, encoder, critics, alpha=None
+    ):
+        self.procam = procam
+        self.objective = objective_class(encoder, critics, alpha)
+
+    def __call__(self, image):
+        image_as_if_nothing_happened = self.procam(image)
+        return self.objective(image_as_if_nothing_happened)

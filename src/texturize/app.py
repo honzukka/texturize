@@ -15,6 +15,7 @@ from .solvers import (
     SolverLBFGS,
     MultiCriticObjective,
     SequentialCriticObjective,
+    ProcamObjectiveWrapper
 )
 from .io import *
 
@@ -23,11 +24,12 @@ __all__ = ["Application", "Result", "TextureSynthesizer"]
 
 
 class TextureSynthesizer:
-    def __init__(self, device, encoder, lr, quality):
+    def __init__(self, device, encoder, lr, quality, procam):
         self.device = device
         self.encoder = encoder
         self.quality = quality
         self.learning_rate = lr
+        self.procam = procam
 
     def run(self, progress, seed_img, *args):
         for oc, sc in itertools.product(
@@ -59,7 +61,9 @@ class TextureSynthesizer:
         alpha = None if image.shape[1] == 3 else image[:, 3:4]
         image = image[:, 0:3].detach().requires_grad_(True)
 
-        obj = objective_class(self.encoder, critics, alpha=alpha)
+        obj = ProcamObjectiveWrapper(
+            self.procam, objective_class, self.encoder, critics, alpha
+        )
         opt = solver_class(obj, image, lr=self.learning_rate)
 
         for i, loss, converge, lr, retries in self._iterate(opt):
@@ -109,7 +113,9 @@ Result = collections.namedtuple(
 
 
 class Application:
-    def __init__(self, log=None, device=None, precision=None):
+    def __init__(self, log=None, device=None, precision=None, procam=None):
+        self.procam = procam
+
         # Setup the output and logging to use throughout the synthesis.
         self.log = log or get_default_log()
         # Determine which device use based on what's available.
@@ -121,7 +127,7 @@ class Application:
 
     def process_octave(self, result_img, encoder, critics, octave, scale, quality):
         # Each octave we start a new optimization process.
-        synth = TextureSynthesizer(self.device, encoder, lr=1.0, quality=quality)
+        synth = TextureSynthesizer(self.device, encoder, 1.0, quality, self.procam)
         result_img = result_img.to(dtype=self.precision)
 
         # The first iteration contains the rescaled image with noise.

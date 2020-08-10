@@ -1,5 +1,6 @@
 # texturize — Copyright (c) 2020, Novelty Factory KG.  See LICENSE for details.
 
+import os
 import time
 import random
 import urllib
@@ -24,8 +25,12 @@ def load_image_from_file(filename, mode=None):
         return image
 
 
-def load_tensor_from_image(image, device, dtype=torch.float32):
-    return V.to_tensor(image).unsqueeze(0).to(device, dtype)
+def load_tensor_from_image(image, device, dtype=torch.float32, linearize=False):
+    tensor = V.to_tensor(image).unsqueeze(0).to(device, dtype)
+    if linearize:
+        return tensor.pow(2.2)
+    else:
+        return tensor
 
 
 def load_image_from_url(url, mode="RGB"):
@@ -46,8 +51,10 @@ def save_tensor_to_file(tensor, filename, mode="RGB"):
     img[0].save(filename)
 
 
-def save_tensor_to_images(tensor, mode="RGB"):
+def save_tensor_to_images(tensor, mode="RGB", to_sRGB=False):
     assert tensor.min() >= 0.0 and tensor.max() <= 1.0
+    if to_sRGB:
+        tensor = tensor.pow(1.0 / 2.2)
     return [
         V.to_pil_image(tensor[j].detach().cpu().float(), mode)
         for j in range(tensor.shape[0])
@@ -183,3 +190,27 @@ def load_image_from_notebook():
     widget = ImageUploadWidget()
     display(widget)
     return widget
+
+
+def output_bg_and_target(bg, target, output_str, to_sRGB=True):
+    if bg is not None:
+        bg_img = save_tensor_to_images(bg, to_sRGB=to_sRGB)[0]
+        bg_filename = output_str.format(
+            octave="", variation="", command="", type="bg"
+        )
+        bg_img.save(bg_filename, lossless=True, compress=6)
+
+    target_img = save_tensor_to_images(target, to_sRGB=to_sRGB)[0]
+    target_filename = output_str.format(
+        octave="", variation="", command="", type="target"
+    )
+    target_img.save(target_filename, lossless=True, compress=6)
+
+
+def create_output_subfolder(output_template, bg_path, src_path):
+    root = os.path.dirname(output_template)
+    bg_name = os.path.splitext(os.path.basename(bg_path))[0]
+    src_name = os.path.splitext(os.path.basename(src_path))[0]
+    out_dir = os.path.join(root, "{}-{}".format(bg_name, src_name))
+    os.makedirs(out_dir, exist_ok=True)
+    return os.path.join(out_dir, os.path.basename(output_template))

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-r"""  _            _              _         
+r"""  _            _              _
  | |_ _____  _| |_ _   _ _ __(_)_______ 
  | __/ _ \ \/ / __| | | | '__| |_  / _ \
  | ||  __/>  <| |_| |_| | |  | |/ /  __/
@@ -25,6 +25,12 @@ Options:
     -s WxH, --size=WxH      Output resolution as WIDTHxHEIGHT. [default: 640x480]
     -o FILE, --output=FILE  Filename for saving the result, includes format variables.
                             [default: {command}_{source}{variation}.png]
+
+    --matrix=MATRIX         Path to the light transport matrix.
+    --crop=CROP             Coordinates of a projection crop which is to be
+                            matched against the target.
+    --backgrounds=BACKGROUNDS   Paths to background images.
+    --brightness=BRIGHTNESS     Multiplier to be used at the end of the rendering process.
 
     --weights=WEIGHTS       Comma-separated list of blend weights. [default: 1.0]
     --zoom=ZOOM             Integer zoom factor for enhancing. [default: 2]
@@ -65,6 +71,12 @@ import torch
 from . import __version__
 from . import api, io, commands
 from .logger import ansi, ConsoleLog
+from .procam import (
+    load_matrix_wrap as load_matrix,
+    Metadata,
+    Procam,
+    ProcamSimple
+)
 
 
 def validate(config):
@@ -74,6 +86,9 @@ def validate(config):
 
     def split_strings(text: str):
         return text.split(",")
+
+    def split_crop(crop: str):
+        return tuple(map(int, crop.split(",")))
 
     def split_floats(text: str):
         return tuple(map(float, text.split(",")))
@@ -98,6 +113,10 @@ def validate(config):
             "help": Use(bool),
             "quiet": Use(bool),
             "verbose": Use(bool),
+            "matrix": Or(None, str),
+            "crop": Or(None, And(Use(split_crop), tuple)),
+            "backgrounds": Or(None, Use(split_strings)),
+            "brightness": Use(int)
         },
         ignore_extra_keys=True,
     )
@@ -112,10 +131,13 @@ def main():
 
     # Ensure the user-specified values are correct, separate command-specific arguments.
     config = validate(config)
-    sources, target, output, seed = [
-        config.pop(k) for k in ("SOURCE", "TARGET", "output", "seed")
+    sources, target, output_template, seed, matrix_path, crop = [
+        config.pop(k) for k in ("SOURCE", "TARGET", "output", "seed", "matrix_path", "crop")
     ]
-    weights, zoom = [config.pop(k) for k in ("weights", "zoom")]
+    weights, zoom, brightness = [config.pop(k) for k in ("weights", "zoom", "brightness")]
+    backgrounds = config.pop("backgrounds")
+    if backgrounds is None:
+        backgrounds = [None]
 
     # Setup the output logging and display the logo!
     log = ConsoleLog(config.pop("quiet"), config.pop("verbose"))
@@ -124,16 +146,38 @@ def main():
         log.notice(__doc__[204:])
         return
 
+    # Set the device
+    device = config["device"] or ("cuda" if torch.cuda.is_available() else "cpu")
+
     # Scan all the files based on the patterns specified.
-    files = itertools.chain.from_iterable(glob.glob(s) for s in sources)
-    for filename in files:
+    src_files = itertools.chain.from_iterable(glob.glob(s) for s in sources)
+    inputs = itertools.product(backgrounds, src_files)
+    for bg_path, src_path in inputs:
+        output = io.create_output_subfolder(output_template, bg_path, src_path)
+
+        # Load procam-related stuff.
+        if matrix_path:
+            metadata = Metadata.create_from_matrix_file(matrix_path)
+            matrix = torch.from_numpy(load_matrix(matrix_path)).to(device)
+            config["procam"] = Procam(matrix, metadata, crop)
+        else:
+            if bg_path is not None:
+                background = io.load_tensor_from_image(
+                    io.load_image_from_file(bg_path),
+                    device=device
+                )
+                config["size"] = (background.shape[3], background.shape[2])
+            else:
+                background = None
+            config["procam"] = ProcamSimple(background, brightness)
+
         # If there's a random seed, use the same for all images.
         if seed is not None:
             torch.manual_seed(seed)
             torch.cuda.manual_seed(seed)
 
         # Load the images necessary.
-        source_img = io.load_image_from_file(filename)
+        source_img = io.load_image_from_file(src_path)
         target_img = io.load_image_from_file(target) if target else None
 
         # Setup the command specified by user.
@@ -166,7 +210,7 @@ def main():
         try:
             config["output"] = output
             config["output"] = config["output"].replace(
-                "{source}", os.path.splitext(os.path.basename(filename))[0]
+                "{source}", os.path.splitext(os.path.basename(src_path))[0]
             )
             if target:
                 config["output"] = config["output"].replace(
