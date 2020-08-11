@@ -6,7 +6,7 @@ import torch
 import torch.nn.functional as F
 
 from .io import load_tensor_from_image
-from .app import Application, Result
+from .app import Result
 from .critics import PatchCritic, GramMatrixCritic, HistogramCritic
 
 
@@ -20,11 +20,11 @@ def create_default_critics(mode, layers=None):
         layers = layers or ("3_1", "2_1", "1_1")
 
     if mode == "patch":
-        return [PatchCritic(layer=l) for l in layers]
+        return [PatchCritic(layer=layer) for layer in layers]
     elif mode == "gram":
-        return [GramMatrixCritic(layer=l) for l in layers]
+        return [GramMatrixCritic(layer=layer) for layer in layers]
     elif mode == "hist":
-        return [HistogramCritic(layer=l) for l in layers]
+        return [HistogramCritic(layer=layer) for layer in layers]
 
 
 def prepare_default_critics(app, scale, texture, critics):
@@ -78,7 +78,7 @@ def random_normal(size, mean):
 
 class Remix(Command):
     def __init__(self, source):
-        self.source = load_tensor_from_image(source.convert("RGB"), device="cpu")
+        self.source = load_tensor_from_image(source.convert("RGB"), device="cpu", linearize=True)
 
     def prepare_critics(self, app, scale):
         critics = create_default_critics(app.mode or "patch", app.layers)
@@ -195,12 +195,12 @@ class Expand(Command):
         start = (size[2] - target_size[0]) // 2, (size[3] - target_size[1]) // 2
         slice_y = slice(start[0], start[0] + target_size[0])
         slice_x = slice(start[1], start[1] + target_size[1])
-        current[:, :, slice_y, slice_x,] = target
+        current[:, :, slice_y, slice_x] = target
 
         # This currently uses a very crisp boolean mask, looks better when edges are
         # smoothed for `overlap` pixels.
         alpha = torch.ones_like(current[:, 0:1])
-        alpha[:, :, slice_y, slice_x,] = 0.0
+        alpha[:, :, slice_y, slice_x] = 0.0
         return torch.cat([current, alpha], dim=1)
 
 

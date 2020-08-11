@@ -26,7 +26,7 @@ def load_image_from_file(filename, mode=None):
 
 
 def load_tensor_from_image(image, device, dtype=torch.float32, linearize=False):
-    tensor = V.to_tensor(image).unsqueeze(0).to(device, dtype)
+    tensor = V.to_tensor(image).unsqueeze(0)[:, :3].to(device, dtype)
     if linearize:
         return tensor.pow(2.2)
     else:

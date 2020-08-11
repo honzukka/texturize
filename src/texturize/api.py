@@ -1,15 +1,12 @@
 # texturize — Copyright (c) 2020, Novelty Factory KG.  See LICENSE for details.
 
-import os
 import math
 
 import torch
-import torch.nn.functional as F
 from creativeai.image.encoders import models
 
-from .critics import GramMatrixCritic, PatchCritic, HistogramCritic
-from .app import TextureSynthesizer, Application, Result
-from .io import *
+from .app import Application, Result
+from .io import save_tensor_to_images, output_bg_and_target
 
 
 @torch.no_grad()
@@ -79,7 +76,8 @@ def process_iterations(
                 if "CUDA out of memory." not in str(e):
                     raise
 
-                import gc; gc.collect
+                import gc
+                gc.collect()
                 torch.cuda.empty_cache()
 
 

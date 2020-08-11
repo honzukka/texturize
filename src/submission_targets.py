@@ -74,7 +74,7 @@ def texturize_target(submit_config, config, rel_dir):
             if bg_path:
                 background = io.load_tensor_from_image(
                     io.load_image_from_file(bg_path),
-                    device=device
+                    device=device, linearize=True
                 )
                 config["size"] = (background.shape[3], background.shape[2])
             else:
