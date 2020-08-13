@@ -31,6 +31,7 @@ Options:
                             matched against the target.
     --backgrounds=BACKGROUNDS   Paths to background images.
     --brightness=BRIGHTNESS     Multiplier to be used at the end of the rendering process.
+                                [default: 1.0]
 
     --weights=WEIGHTS       Comma-separated list of blend weights. [default: 1.0]
     --zoom=ZOOM             Integer zoom factor for enhancing. [default: 2]
@@ -116,7 +117,7 @@ def validate(config):
             "matrix": Or(None, str),
             "crop": Or(None, And(Use(split_crop), tuple)),
             "backgrounds": Or(None, Use(split_strings)),
-            "brightness": Use(int)
+            "brightness": Use(float)
         },
         ignore_extra_keys=True,
     )
@@ -125,14 +126,14 @@ def validate(config):
 
 def main():
     # Parse the command-line options based on the script's documentation.
-    config = docopt.docopt(__doc__[204:], version=__version__, help=False)
+    config = docopt.docopt(__doc__[194:], version=__version__, help=False)
     all_commands = [cmd.lower() for cmd in commands.__all__] + ["--help"]
     command = [cmd for cmd in all_commands if config[cmd]][0]
 
     # Ensure the user-specified values are correct, separate command-specific arguments.
     config = validate(config)
     sources, target, output_template, seed, matrix_path, crop = [
-        config.pop(k) for k in ("SOURCE", "TARGET", "output", "seed", "matrix_path", "crop")
+        config.pop(k) for k in ("SOURCE", "TARGET", "output", "seed", "matrix", "crop")
     ]
     weights, zoom, brightness = [config.pop(k) for k in ("weights", "zoom", "brightness")]
     backgrounds = config.pop("backgrounds")
@@ -141,9 +142,9 @@ def main():
 
     # Setup the output logging and display the logo!
     log = ConsoleLog(config.pop("quiet"), config.pop("verbose"))
-    log.notice(ansi.PINK + __doc__[:204] + ansi.ENDC)
+    log.notice(ansi.PINK + __doc__[:194] + ansi.ENDC)
     if config.pop("help") is True:
-        log.notice(__doc__[204:])
+        log.notice(__doc__[194:])
         return
 
     # Set the device

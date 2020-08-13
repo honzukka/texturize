@@ -9,11 +9,11 @@ def main():
 def submit_texturize():
     submit_config = create_submit_config(
         run_func='submission_targets.texturize_target',
-        task_description='texturize_fork_test',
-        time='0-01:00:00',
+        task_description='texturize_gram_dark_spot_test',
+        time='0-02:00:00',
         n_cores=1,
         memory=16,
-        flag='DGX'
+        flag='GPU'
     )
 
     # Define the parameters that are passed to the run function.
@@ -21,7 +21,9 @@ def submit_texturize():
 
     config = {
         'SOURCE': [
-            'img/tex/big_pebbles.png'
+            'img/tex/big_pebbles.png', 'img/tex/bricks.png', 'img/tex/dirt.png',
+            'img/tex/flowers.png', 'img/tex/flowers2.png', 'img/tex/gravel.png',
+            'img/tex/marble.png', 'img/tex/wood.png'
         ],
         'output': '{command}_{source}_{variation}_{octave}_{type}.png',
         'size': (256, 256),
@@ -29,7 +31,7 @@ def submit_texturize():
         'variations': 1,
         'quality': 4.0,
         'precision': None,
-        'mode': "patch",
+        'mode': "gram",
         'octaves': 4,
         'verbose': False,
         'seed': None,
@@ -43,9 +45,9 @@ def submit_texturize():
         'matrix': None,
         'crop': None,
         'backgrounds': [
-            'img/bg/white-640x480.png'
+            'img/bg/scene-human.png'
         ],
-        'brightness': 1.0
+        'brightness': 5.0
     }
 
     run_func_args.config = config
