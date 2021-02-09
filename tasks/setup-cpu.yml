@@ -6,6 +6,8 @@ dependencies:
   - pytorch=1.5.1
   - torchvision=0.6.1
   - cpuonly
+  - h5py
   - pip:
     - invoke
     - poetry
+    - psutil
